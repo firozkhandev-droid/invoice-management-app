@@ -31,6 +31,9 @@ model User {
   createdCreditNotes CreditNote[] @relation("CreditNoteCreator")
   updatedCreditNotes CreditNote[] @relation("CreditNoteUpdater")
   issuedCreditNotes CreditNote[] @relation("CreditNoteIssuer")
+  createdPackingLists PackingList[] @relation("PackingListCreator")
+  updatedPackingLists PackingList[] @relation("PackingListUpdater")
+  issuedPackingLists PackingList[] @relation("PackingListIssuer")
   generatedDocuments GeneratedDocument[]
   createdPayments Payment[] @relation("PaymentCreator")
   reversedPayments Payment[] @relation("PaymentReverser")
@@ -100,6 +103,8 @@ model Organisation {
   invoiceRevisions InvoiceRevision[]
   creditNotes CreditNote[]
   creditNoteLines CreditNoteLine[]
+  packingLists PackingList[]
+  packingListLines PackingListLine[]
   generatedDocuments GeneratedDocument[]
   payments Payment[]
   paymentAllocations PaymentAllocation[]
@@ -217,6 +222,7 @@ model Company {
   invoiceNumberSeries InvoiceNumberSeries[]
   creditNoteNumberSeries CreditNoteNumberSeries[]
   invoices Invoice[]
+  packingLists PackingList[]
 
   @@index([organisationId, isActive])
   @@index([organisationId, isDefault])
@@ -277,6 +283,8 @@ model Buyer {
   addresses    BuyerAddress[]
   invoices Invoice[]
   consigneeInvoices Invoice[] @relation("InvoiceConsigneeBuyer")
+  packingLists PackingList[] @relation("PackingListBuyer")
+  consigneePackingLists PackingList[] @relation("PackingListConsigneeBuyer")
 
   @@index([organisationId, isActive])
   @@index([organisationId, displayName])
@@ -380,6 +388,7 @@ model Item {
   unit         Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
   taxRate      TaxRate?     @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
   invoiceItems InvoiceItem[]
+  packingListLines PackingListLine[]
 
   @@unique([organisationId, sku])
   @@index([organisationId, isActive])
@@ -585,6 +594,7 @@ model Invoice {
   documents       GeneratedDocument[]
   paymentAllocations PaymentAllocation[]
   creditNotes CreditNote[] @relation("OriginalInvoiceCreditNotes")
+  packingLists PackingList[]
 
   @@index([organisationId, status, invoiceDate])
   @@index([organisationId, buyerId])
@@ -618,9 +628,91 @@ model InvoiceItem {
   invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   item         Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
   creditNoteLines CreditNoteLine[]
+  packingListLines PackingListLine[]
 
   @@index([organisationId, invoiceId, sortOrder])
   @@map("invoice_items")
+}
+
+model PackingList {
+  id               String            @id @default(uuid()) @db.Char(36)
+  organisationId   String            @map("organisation_id") @db.Char(36)
+  invoiceId        String?           @map("invoice_id") @db.Char(36)
+  companyId        String?           @map("company_id") @db.Char(36)
+  buyerId          String?           @map("buyer_id") @db.Char(36)
+  consigneeBuyerId String?           @map("consignee_buyer_id") @db.Char(36)
+  status           PackingListStatus @default(draft)
+  packingListNumber String?          @map("packing_list_number") @db.VarChar(120)
+  sequenceNumber   Int?              @map("sequence_number")
+  packingListDate  DateTime          @map("packing_list_date") @db.Date
+  exportReference  String?           @map("export_reference") @db.VarChar(120)
+  containerNumber  String?           @map("container_number") @db.VarChar(120)
+  sealNumber       String?           @map("seal_number") @db.VarChar(120)
+  shipmentMode     String?           @map("shipment_mode") @db.VarChar(80)
+  portOfLoading    String?           @map("port_of_loading") @db.VarChar(120)
+  portOfDischarge  String?           @map("port_of_discharge") @db.VarChar(120)
+  finalDestination String?           @map("final_destination") @db.VarChar(120)
+  totalPackages    Int               @default(0) @map("total_packages")
+  totalQuantity    Decimal           @default(0) @map("total_quantity") @db.Decimal(18, 4)
+  totalNetWeightKg Decimal           @default(0) @map("total_net_weight_kg") @db.Decimal(18, 4)
+  totalGrossWeightKg Decimal         @default(0) @map("total_gross_weight_kg") @db.Decimal(18, 4)
+  totalVolumeCbm   Decimal           @default(0) @map("total_volume_cbm") @db.Decimal(18, 6)
+  notes            String?           @db.Text
+  version          Int               @default(1)
+  createdById      String            @map("created_by_id") @db.Char(36)
+  updatedById      String?           @map("updated_by_id") @db.Char(36)
+  issuedById       String?           @map("issued_by_id") @db.Char(36)
+  issuedAt         DateTime?         @map("issued_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  invoice         Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  company         Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  buyer           Buyer?       @relation("PackingListBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  consigneeBuyer  Buyer?       @relation("PackingListConsigneeBuyer", fields: [consigneeBuyerId], references: [id], onDelete: SetNull)
+  createdBy       User         @relation("PackingListCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       User?        @relation("PackingListUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  issuedBy        User?        @relation("PackingListIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  lines           PackingListLine[]
+
+  @@unique([organisationId, packingListNumber])
+  @@index([organisationId, status, packingListDate])
+  @@index([organisationId, invoiceId])
+  @@map("packing_lists")
+}
+
+model PackingListLine {
+  id              String   @id @default(uuid()) @db.Char(36)
+  organisationId  String   @map("organisation_id") @db.Char(36)
+  packingListId   String   @map("packing_list_id") @db.Char(36)
+  itemId          String?  @map("item_id") @db.Char(36)
+  invoiceItemId   String?  @map("invoice_item_id") @db.Char(36)
+  sortOrder       Int      @map("sort_order")
+  packageNo       String?  @map("package_no") @db.VarChar(80)
+  marksAndNumbers String?  @map("marks_and_numbers") @db.VarChar(160)
+  sku             String?  @db.VarChar(80)
+  description     String   @db.Text
+  hsnSac          String?  @map("hsn_sac") @db.VarChar(20)
+  quantity        Decimal  @db.Decimal(18, 4)
+  unitCode        String?  @map("unit_code") @db.VarChar(20)
+  netWeightKg     Decimal  @default(0) @map("net_weight_kg") @db.Decimal(18, 4)
+  grossWeightKg   Decimal  @default(0) @map("gross_weight_kg") @db.Decimal(18, 4)
+  lengthCm        Decimal? @map("length_cm") @db.Decimal(12, 4)
+  widthCm         Decimal? @map("width_cm") @db.Decimal(12, 4)
+  heightCm        Decimal? @map("height_cm") @db.Decimal(12, 4)
+  volumeCbm       Decimal  @default(0) @map("volume_cbm") @db.Decimal(18, 6)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  packingList  PackingList  @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+  item          Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  invoiceItem   InvoiceItem? @relation(fields: [invoiceItemId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, packingListId, sortOrder])
+  @@index([organisationId, invoiceItemId])
+  @@map("packing_list_lines")
 }
 
 model InvoiceRevision {
@@ -826,6 +918,12 @@ enum PaymentStatus {
 }
 
 enum CreditNoteStatus {
+  draft
+  issued
+  cancelled
+}
+
+enum PackingListStatus {
   draft
   issued
   cancelled
