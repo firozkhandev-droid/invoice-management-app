@@ -46,6 +46,17 @@ export async function getDashboardSummary(context: TenantContext) {
       balanceDue: { gt: new Prisma.Decimal(0) }
     }
   });
+  const draftInvoices = await prisma.invoice.count({
+    where: {
+      organisationId: tenant.organisationId,
+      status: "draft"
+    }
+  });
+  const [companyCount, buyerCount, itemCount] = await Promise.all([
+    prisma.company.count({ where: { organisationId: tenant.organisationId, isActive: true } }),
+    prisma.buyer.count({ where: { organisationId: tenant.organisationId, isActive: true } }),
+    prisma.item.count({ where: { organisationId: tenant.organisationId, isActive: true } })
+  ]);
   const recentInvoices = await prisma.invoice.findMany({
     where: { organisationId: tenant.organisationId },
     include: { buyer: true },
@@ -65,6 +76,10 @@ export async function getDashboardSummary(context: TenantContext) {
     receivedThisMonth: receivedThisMonth._sum.amount ?? new Prisma.Decimal(0),
     outstandingBalance: outstandingInvoices._sum.balanceDue ?? new Prisma.Decimal(0),
     overdueInvoices,
+    draftInvoices,
+    companyCount,
+    buyerCount,
+    itemCount,
     recentInvoices,
     recentPayments
   };

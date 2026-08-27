@@ -1,13 +1,17 @@
 :root {
   color-scheme: light;
-  --background: #f7f8fa;
-  --foreground: #111827;
-  --muted: #667085;
-  --border: #d0d5dd;
+  --background: #f4f6f8;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #d7dde5;
   --panel: #ffffff;
   --primary: #0f766e;
   --primary-dark: #115e59;
+  --accent: #2563eb;
+  --warning: #b7791f;
   --danger: #b42318;
+  --success: #067647;
+  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
 * {
@@ -18,7 +22,8 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  line-height: 1.45;
 }
 
 a {
@@ -49,9 +54,12 @@ button:disabled {
 }
 
 .sidebar {
-  background: #17202a;
+  background: #111827;
   color: #f8fafc;
-  padding: 24px 18px;
+  padding: 24px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .brand {
@@ -60,11 +68,12 @@ button:disabled {
   gap: 10px;
   font-weight: 700;
   margin-bottom: 28px;
+  min-height: 42px;
 }
 
 .brand-mark {
   align-items: center;
-  background: #0f766e;
+  background: linear-gradient(135deg, #0f766e, #2563eb);
   border-radius: 6px;
   display: inline-flex;
   height: 34px;
@@ -85,20 +94,26 @@ button:disabled {
   gap: 10px;
   padding: 10px 12px;
   text-decoration: none;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
 }
 
 .nav a:hover,
 .nav a.active {
-  background: #263342;
+  background: #1f2937;
   color: #ffffff;
 }
 
 .nav a.active {
-  box-shadow: inset 3px 0 0 #2dd4bf;
+  box-shadow: inset 3px 0 0 #38bdf8;
+}
+
+.nav a:hover {
+  transform: translateX(2px);
 }
 
 .content {
-  padding: 28px;
+  padding: 32px;
+  min-width: 0;
 }
 
 .page-header {
@@ -106,7 +121,7 @@ button:disabled {
   display: flex;
   gap: 18px;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 22px;
 }
 
 .page-header p,
@@ -118,6 +133,15 @@ button:disabled {
 .page-header h1,
 .section-title h2 {
   margin: 0;
+}
+
+.page-header h1 {
+  font-size: 36px;
+  line-height: 1.12;
+}
+
+.section-title h2 {
+  font-size: 22px;
 }
 
 .meta-row,
@@ -159,6 +183,7 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 24px;
+  box-shadow: var(--shadow);
 }
 
 .grid {
@@ -202,10 +227,35 @@ button:disabled {
 }
 
 .stat {
-  background: #ffffff;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
   border: 1px solid var(--border);
   border-radius: 8px;
+  min-height: 112px;
   padding: 18px;
+  position: relative;
+}
+
+.stat::before {
+  background: var(--primary);
+  border-radius: 999px;
+  content: "";
+  height: 4px;
+  left: 18px;
+  position: absolute;
+  right: 18px;
+  top: 0;
+}
+
+.stat.accent::before {
+  background: var(--accent);
+}
+
+.stat.warning::before {
+  background: var(--warning);
+}
+
+.stat.danger::before {
+  background: var(--danger);
 }
 
 .stat span {
@@ -223,6 +273,9 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 99, 235, 0.08)),
+    var(--background);
 }
 
 .auth-card {
@@ -231,6 +284,7 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 28px;
+  box-shadow: var(--shadow);
 }
 
 .auth-card h1 {
@@ -250,12 +304,14 @@ button:disabled {
 .field label {
   font-size: 14px;
   font-weight: 700;
+  color: #334155;
 }
 
 .field input {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 11px 12px;
+  background: #ffffff;
 }
 
 .field textarea,
@@ -298,14 +354,17 @@ button:disabled {
 .table th,
 .table td {
   border-bottom: 1px solid var(--border);
-  padding: 12px;
+  padding: 13px 12px;
   text-align: left;
   vertical-align: top;
 }
 
 .table th {
-  color: #475467;
+  background: #f8fafc;
+  color: #475569;
   font-size: 13px;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .table tbody tr:hover {
@@ -314,6 +373,18 @@ button:disabled {
 
 .table-wrap {
   overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.table-wrap .table th:first-child,
+.table-wrap .table td:first-child {
+  padding-left: 16px;
+}
+
+.table-wrap .table th:last-child,
+.table-wrap .table td:last-child {
+  padding-right: 16px;
 }
 
 .table.compact th,
@@ -342,12 +413,14 @@ button:disabled {
 
 .empty-state {
   align-items: center;
-  border: 1px dashed var(--border);
+  background: #f8fafc;
+  border: 1px dashed #b8c2cc;
   border-radius: 8px;
   color: var(--muted);
   display: grid;
   min-height: 118px;
   padding: 24px;
+  text-align: center;
 }
 
 .status-badge {
@@ -408,10 +481,13 @@ button:disabled {
   min-height: 42px;
   padding: 10px 16px;
   text-decoration: none;
+  transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .button:hover {
   background: var(--primary-dark);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+  transform: translateY(-1px);
 }
 
 .button.subtle {
@@ -501,13 +577,71 @@ button:disabled {
   color: var(--muted);
 }
 
+.kpi-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.kpi-icon {
+  align-items: center;
+  background: #eef8f7;
+  border-radius: 6px;
+  color: var(--primary);
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.insight-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+.insight-list li {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 0 0 12px;
+}
+
+.insight-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.asset-placeholder {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px dashed #b8c2cc;
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  min-height: 86px;
+  padding: 16px;
+}
+
+.helper-text {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 @media (max-width: 780px) {
   .shell {
     grid-template-columns: 1fr;
   }
 
   .sidebar {
+    height: auto;
     padding: 18px;
+    position: static;
   }
 
   .brand {
@@ -527,6 +661,10 @@ button:disabled {
 
   .content {
     padding: 18px;
+  }
+
+  .page-header h1 {
+    font-size: 30px;
   }
 
   .two-column {
