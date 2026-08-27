@@ -360,11 +360,18 @@ model Item {
   sku            String?  @db.VarChar(80)
   name           String   @db.VarChar(180)
   description    String?  @db.Text
+  category       String?  @db.VarChar(120)
+  subcategory    String?  @db.VarChar(120)
   hsnSac         String?  @map("hsn_sac") @db.VarChar(20)
+  manufacturer   String?  @db.VarChar(160)
+  barcode        String?  @db.VarChar(120)
+  weightKg       Decimal? @map("weight_kg") @db.Decimal(12, 4)
   unitId         String?  @map("unit_id") @db.Char(36)
   taxRateId      String?  @map("tax_rate_id") @db.Char(36)
   saleRate       Decimal? @map("sale_rate") @db.Decimal(18, 4)
   currency       String   @default("INR") @db.Char(3)
+  imageAssetId   String?  @map("image_asset_id") @db.VarChar(160)
+  imageStatus    String   @default("pending") @map("image_status") @db.VarChar(40)
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
@@ -376,6 +383,8 @@ model Item {
 
   @@unique([organisationId, sku])
   @@index([organisationId, isActive])
+  @@index([organisationId, category])
+  @@index([organisationId, barcode])
   @@index([organisationId, name])
   @@map("items")
 }
