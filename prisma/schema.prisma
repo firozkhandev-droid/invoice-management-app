@@ -710,8 +710,8 @@ model PackingListLine {
   item          Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
   invoiceItem   InvoiceItem? @relation(fields: [invoiceItemId], references: [id], onDelete: SetNull)
 
-  @@index([organisationId, packingListId, sortOrder])
-  @@index([organisationId, invoiceItemId])
+  @@index([organisationId, packingListId, sortOrder], map: "pl_lines_org_pl_sort_idx")
+  @@index([organisationId, invoiceItemId], map: "pl_lines_org_invoice_item_idx")
   @@map("packing_list_lines")
 }
 

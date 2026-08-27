@@ -65,8 +65,8 @@ CREATE TABLE `packing_list_lines` (
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL,
 
-  INDEX `packing_list_lines_organisation_id_packing_list_id_sort_order_idx`(`organisation_id`, `packing_list_id`, `sort_order`),
-  INDEX `packing_list_lines_organisation_id_invoice_item_id_idx`(`organisation_id`, `invoice_item_id`),
+  INDEX `pl_lines_org_pl_sort_idx`(`organisation_id`, `packing_list_id`, `sort_order`),
+  INDEX `pl_lines_org_invoice_item_idx`(`organisation_id`, `invoice_item_id`),
   INDEX `packing_list_lines_packing_list_id_idx`(`packing_list_id`),
   INDEX `packing_list_lines_item_id_idx`(`item_id`),
   PRIMARY KEY (`id`)
