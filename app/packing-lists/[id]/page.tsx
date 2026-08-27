@@ -4,7 +4,7 @@ import { ClipboardCheck, Download, PackagePlus, Save, Send, Trash2 } from "lucid
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTenantContextForUser } from "@/lib/organisations/membership";
-import { getPackingList, getPackingListWorkspace } from "@/lib/packing-lists/packing-list-service";
+import { getPackingList, getPackingListWorkspace, packingListIssueRequirements } from "@/lib/packing-lists/packing-list-service";
 
 export default async function PackingListDetailPage({
   params
@@ -26,7 +26,8 @@ export default async function PackingListDetailPage({
   if (!packingList) notFound();
 
   const canEdit = packingList.status === "draft";
-  const canIssue = canEdit && Boolean(packingList.companyId && packingList.buyerId && packingList.lines.length > 0);
+  const issueRequirements = packingListIssueRequirements(packingList);
+  const canIssue = canEdit && issueRequirements.length === 0;
 
   return (
     <AppShell>
@@ -154,8 +155,8 @@ export default async function PackingListDetailPage({
               </div>
               <Send size={20} />
             </div>
-            {!canIssue ? (
-              <p className="notice error">Select a company, buyer, and at least one packing line before issuing.</p>
+            {canEdit && issueRequirements.length > 0 ? (
+              <p className="notice error">Before issuing: {issueRequirements.join(", ")}.</p>
             ) : null}
             <form action="/api/packing-lists/issue" method="post">
               <input type="hidden" name="packingListId" value={packingList.id} />

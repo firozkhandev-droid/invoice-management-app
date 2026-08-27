@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculatePackingTotals, lineVolumeCbm } from "@/lib/packing-lists/calculation";
+import { packingListIssueRequirements } from "@/lib/packing-lists/packing-list-service";
 import { packingListPdfFilename, renderPackingListPdf } from "@/lib/packing-lists/packing-list-pdf";
 import { InMemoryTenantRepository, type TenantRecord } from "@/lib/repositories/tenant-repository";
 import type { TenantContext } from "@/lib/repositories/tenant-context";
@@ -49,6 +50,32 @@ describe("packing list tenant isolation", () => {
 
     expect(repo.findById(ownerA, "packing-b", "documents:download")).toBeNull();
     expect(repo.findById(ownerB, "packing-b", "documents:download")?.packingListNumber).toBe("PL/2026/0002");
+  });
+});
+
+describe("packing list issue requirements", () => {
+  it("requires shipment details before issue", () => {
+    expect(packingListIssueRequirements({
+      companyId: "company",
+      buyerId: "buyer",
+      lines: [{}],
+      shipmentMode: null,
+      portOfLoading: "Nhava Sheva",
+      portOfDischarge: "Jebel Ali",
+      finalDestination: null
+    })).toEqual(["enter shipment mode", "enter final destination"]);
+  });
+
+  it("allows a complete packing list to issue", () => {
+    expect(packingListIssueRequirements({
+      companyId: "company",
+      buyerId: "buyer",
+      lines: [{}],
+      shipmentMode: "Sea",
+      portOfLoading: "Nhava Sheva",
+      portOfDischarge: "Jebel Ali",
+      finalDestination: "Dubai"
+    })).toEqual([]);
   });
 });
 

@@ -118,6 +118,10 @@ export async function getInvoice(context: TenantContext, invoiceId: string) {
       creditNotes: {
         include: { createdBy: true },
         orderBy: { createdAt: "desc" }
+      },
+      packingLists: {
+        include: { lines: { orderBy: { sortOrder: "asc" } } },
+        orderBy: [{ packingListDate: "desc" }, { createdAt: "desc" }]
       }
     }
   });

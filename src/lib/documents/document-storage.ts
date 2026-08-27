@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { env } from "@/lib/env";
 
@@ -39,4 +39,15 @@ export async function writePrivateDocument(storageKey: string, data: Buffer): Pr
     checksumSha256: createHash("sha256").update(data).digest("hex"),
     byteSize: data.byteLength
   };
+}
+
+export async function readPrivateDocument(storageKey: string): Promise<Buffer> {
+  const uploadRoot = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.UPLOAD_DIR);
+  const absolutePath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.UPLOAD_DIR, storageKey);
+
+  if (!absolutePath.startsWith(uploadRoot + path.sep)) {
+    throw new Error("Invalid document storage path.");
+  }
+
+  return readFile(absolutePath);
 }

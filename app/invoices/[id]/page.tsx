@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Ban, CreditCard, FileClock, FileText, Plus, Save, Send, Trash2, Undo2 } from "lucide-react";
+import { Ban, CreditCard, FileClock, FileText, PackageCheck, Plus, Save, Send, Trash2, Undo2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getInvoice, getInvoiceEditorData } from "@/lib/invoices/invoice-service";
@@ -29,6 +29,10 @@ export default async function InvoiceEditorPage({
   const canOpenPdf = ["issued", "partially_paid", "paid"].includes(invoice.status);
   const canRecordPayment = ["issued", "partially_paid"].includes(invoice.status) && invoice.balanceDue.gt(0);
   const canCreateCreditNote = ["issued", "partially_paid", "paid"].includes(invoice.status);
+  const canCreatePackingList = canCreateCreditNote;
+  const issuedPackingLists = invoice.packingLists.filter((packingList) => packingList.status === "issued");
+  const draftPackingLists = invoice.packingLists.filter((packingList) => packingList.status === "draft");
+  const issuedCreditNotes = invoice.creditNotes.filter((creditNote) => creditNote.status === "issued");
   const canIssue = Boolean(invoice.companyId && invoice.buyerId && invoice.items.length > 0 && invoice.grandTotal.gt(0) && editorData.series.length > 0);
   const statusLabel = invoice.status.replace("_", " ");
   const issueRequirements = [
@@ -345,7 +349,7 @@ export default async function InvoiceEditorPage({
             <section className="panel">
               <div className="section-title">
                 <div>
-                  <p className="muted">Output</p>
+                  <p className="muted">Export output</p>
                   <h2>Documents</h2>
                 </div>
                 <FileText size={20} />
@@ -353,15 +357,53 @@ export default async function InvoiceEditorPage({
               <div className="action-stack">
                 <a className="button" href={`/api/invoices/${invoice.id}/pdf`} target="_blank" rel="noreferrer">
                   <FileText size={18} />
-                  Open PDF
+                  Invoice PDF
                 </a>
-                {canRecordPayment ? (
-                  <Link className="button subtle" href="/payments">
-                    <CreditCard size={18} />
-                    Record payment
+                {issuedPackingLists.map((packingList) => (
+                  <a key={packingList.id} className="button subtle" href={`/api/packing-lists/${packingList.id}/pdf`} target="_blank" rel="noreferrer">
+                    <PackageCheck size={18} />
+                    Packing list {packingList.packingListNumber || ""}
+                  </a>
+                ))}
+                {draftPackingLists.map((packingList) => (
+                  <Link key={packingList.id} className="button subtle" href={`/packing-lists/${packingList.id}`}>
+                    <PackageCheck size={18} />
+                    Continue packing draft
                   </Link>
+                ))}
+                {issuedCreditNotes.map((creditNote) => (
+                  <a key={creditNote.id} className="button subtle" href={`/api/credit-notes/${creditNote.id}/pdf`} target="_blank" rel="noreferrer">
+                    <Undo2 size={18} />
+                    Credit note {creditNote.creditNoteNumber || ""}
+                  </a>
+                ))}
+                {canCreatePackingList ? (
+                  <form className="form" action="/api/packing-lists" method="post">
+                    <input type="hidden" name="invoiceId" value={invoice.id} />
+                    <input type="hidden" name="packingListDate" value={new Date().toISOString().slice(0, 10)} />
+                    <button className="button subtle" type="submit">
+                      <PackageCheck size={18} />
+                      Create packing list
+                    </button>
+                  </form>
                 ) : null}
               </div>
+            </section>
+          ) : null}
+
+          {canRecordPayment ? (
+            <section className="panel">
+              <div className="section-title">
+                <div>
+                  <p className="muted">Payment</p>
+                  <h2>Receivable</h2>
+                </div>
+                <CreditCard size={20} />
+              </div>
+              <Link className="button subtle" href="/payments">
+                <CreditCard size={18} />
+                Record payment
+              </Link>
             </section>
           ) : null}
 

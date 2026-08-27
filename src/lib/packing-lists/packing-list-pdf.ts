@@ -34,6 +34,14 @@ export type PackingListPdfData = {
   company: JsonRecord | null;
   buyer: JsonRecord | null;
   consignee: JsonRecord | null;
+  logo?: {
+    data: Buffer;
+    mimeType: string;
+  } | null;
+  signature?: {
+    data: Buffer;
+    mimeType: string;
+  } | null;
   lines: PackingListPdfLine[];
   totals: {
     packages: string | number;
@@ -111,7 +119,7 @@ function drawHeader(doc: PDFKit.PDFDocument, data: PackingListPdfData, y: number
     ...formatAddressLines(data.company),
     ids(data.company).join(" | ")
   ], true);
-  drawMonogram(doc, tableX + leftW - 48, y + 12, companyName);
+  drawBrandMark(doc, tableX + leftW - 54, y + 12, companyName, data.logo);
 
   const rightX = tableX + leftW;
   drawCell(doc, rightX, y, rightW / 2, 49, "Packing list no.", [data.packingListNumber], true);
@@ -249,6 +257,7 @@ function drawDeclaration(doc: PDFKit.PDFDocument, data: PackingListPdfData, y: n
     text(data.company, "signatoryName"),
     text(data.company, "signatoryDesignation", "Authorised Signatory")
   ]);
+  drawSignatureImage(doc, tableX + leftW + 18, y + 38, tableWidth - leftW - 36, 24, data.signature);
   doc.moveTo(tableX + leftW + 18, y + 64).lineTo(tableX + tableWidth - 18, y + 64).strokeColor(colors.border).stroke();
 }
 
@@ -282,7 +291,22 @@ function addPageNumbers(doc: PDFKit.PDFDocument) {
   }
 }
 
-function drawMonogram(doc: PDFKit.PDFDocument, x: number, y: number, name: string) {
+function drawBrandMark(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  name: string,
+  logo: PackingListPdfData["logo"]
+) {
+  if (logo && canDrawImage(logo.mimeType)) {
+    try {
+      doc.image(logo.data, x - 6, y - 2, { fit: [46, 42], align: "center", valign: "center" });
+      return;
+    } catch {
+      // Fall back to initials if an uploaded image cannot be decoded by PDFKit.
+    }
+  }
+
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -295,6 +319,27 @@ function drawMonogram(doc: PDFKit.PDFDocument, x: number, y: number, name: strin
     align: "center"
   });
   doc.fillColor(colors.ink);
+}
+
+function drawSignatureImage(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  signature: PackingListPdfData["signature"]
+) {
+  if (!signature || !canDrawImage(signature.mimeType)) return;
+
+  try {
+    doc.image(signature.data, x, y, { fit: [width, height], valign: "center" });
+  } catch {
+    // Keep the signature line visible if the uploaded image is not readable.
+  }
+}
+
+function canDrawImage(mimeType: string): boolean {
+  return mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/jpg";
 }
 
 function text(record: JsonRecord | null | undefined, key: string, fallback = ""): string {

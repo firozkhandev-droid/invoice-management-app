@@ -424,6 +424,11 @@ button:disabled {
   color: var(--success);
 }
 
+.badge.warning {
+  background: #fffaeb;
+  color: var(--warning);
+}
+
 .empty-state {
   align-items: center;
   background: #f8fafc;
@@ -638,6 +643,10 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   min-width: 260px;
+}
+
+.row-actions.compact {
+  min-width: 0;
 }
 
 .inline-edit {

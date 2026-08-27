@@ -17,6 +17,7 @@ type InvoiceWithPackingSourceLines = Prisma.InvoiceGetPayload<{
 export type PackingListFilters = {
   status?: string;
   q?: string;
+  source?: string;
 };
 
 export async function listPackingLists(context: TenantContext, filters: PackingListFilters = {}) {
@@ -26,6 +27,8 @@ export async function listPackingLists(context: TenantContext, filters: PackingL
   const where: Prisma.PackingListWhereInput = {
     organisationId: tenant.organisationId,
     ...(filters.status ? { status: filters.status as PackingListStatus } : {}),
+    ...(filters.source === "invoice" ? { invoiceId: { not: null } } : {}),
+    ...(filters.source === "manual" ? { invoiceId: null } : {}),
     ...(filters.q
       ? {
           OR: [
@@ -43,7 +46,7 @@ export async function listPackingLists(context: TenantContext, filters: PackingL
     where,
     include: {
       invoice: true,
-      company: true,
+      company: { include: { logoAsset: true, signatureAsset: true } },
       buyer: true,
       consigneeBuyer: true,
       lines: { orderBy: { sortOrder: "asc" } }
@@ -60,7 +63,7 @@ export async function getPackingList(context: TenantContext, packingListId: stri
     where: { id: packingListId, organisationId: tenant.organisationId },
     include: {
       invoice: { include: { items: { include: { item: true }, orderBy: { sortOrder: "asc" } } } },
-      company: true,
+      company: { include: { logoAsset: true, signatureAsset: true } },
       buyer: true,
       consigneeBuyer: true,
       lines: { include: { item: true, invoiceItem: true }, orderBy: { sortOrder: "asc" } }
@@ -327,9 +330,8 @@ export async function issuePackingList(context: TenantContext, input: PackingLis
     if (!packingList) throw new Error("Packing list not found.");
     if (packingList.status !== "draft") throw new Error("Only draft packing lists can be issued.");
     if (packingList.version !== input.expectedVersion) throw new Error("Packing list was changed elsewhere. Refresh and try again.");
-    if (!packingList.companyId || !packingList.buyerId || packingList.lines.length === 0) {
-      throw new Error("Select a company, buyer, and at least one packing line before issuing.");
-    }
+    const requirements = packingListIssueRequirements(packingList);
+    if (requirements.length > 0) throw new Error(`Before issuing: ${requirements.join(", ")}.`);
 
     const year = packingList.packingListDate.getFullYear();
     const start = new Date(Date.UTC(year, 0, 1));
@@ -380,7 +382,14 @@ export async function generatePackingListPdf(context: TenantContext, packingList
   if (packingList.status !== "issued") throw new Error("Only issued packing lists can be generated as PDF.");
   if (!packingList.packingListNumber) throw new Error("Issued packing list is missing its number.");
 
-  const { packingListPdfFilename, renderPackingListPdf } = await import("@/lib/packing-lists/packing-list-pdf");
+  const [{ packingListPdfFilename, renderPackingListPdf }, { readPrivateDocument }] = await Promise.all([
+    import("@/lib/packing-lists/packing-list-pdf"),
+    import("@/lib/documents/document-storage")
+  ]);
+  const [logo, signature] = await Promise.all([
+    packingList.company?.logoAsset ? readAssetForPdf(readPrivateDocument, packingList.company.logoAsset) : Promise.resolve(null),
+    packingList.company?.signatureAsset ? readAssetForPdf(readPrivateDocument, packingList.company.signatureAsset) : Promise.resolve(null)
+  ]);
   const buffer = await renderPackingListPdf({
     packingListNumber: packingList.packingListNumber,
     packingListDate: packingList.packingListDate,
@@ -396,6 +405,8 @@ export async function generatePackingListPdf(context: TenantContext, packingList
     company: asRecord(packingList.company),
     buyer: asRecord(packingList.buyer),
     consignee: asRecord(packingList.consigneeBuyer || packingList.buyer),
+    logo,
+    signature,
     lines: packingList.lines.map((line) => ({
       sortOrder: line.sortOrder,
       packageNo: line.packageNo,
@@ -434,6 +445,26 @@ export async function generatePackingListPdf(context: TenantContext, packingList
   });
 
   return { buffer, filename: packingListPdfFilename(packingList.packingListNumber) };
+}
+
+export function packingListIssueRequirements(packingList: {
+  companyId: string | null;
+  buyerId: string | null;
+  lines: unknown[];
+  shipmentMode: string | null;
+  portOfLoading: string | null;
+  portOfDischarge: string | null;
+  finalDestination: string | null;
+}) {
+  return [
+    packingList.companyId ? null : "select a company",
+    packingList.buyerId ? null : "select a buyer",
+    packingList.lines.length > 0 ? null : "add at least one packing line",
+    packingList.shipmentMode ? null : "enter shipment mode",
+    packingList.portOfLoading ? null : "enter port of loading",
+    packingList.portOfDischarge ? null : "enter port of discharge",
+    packingList.finalDestination ? null : "enter final destination"
+  ].filter((requirement): requirement is string => Boolean(requirement));
 }
 
 async function validateMasterRefs(
@@ -485,4 +516,18 @@ async function updatePackingTotals(
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+async function readAssetForPdf(
+  readPrivateDocument: (storageKey: string) => Promise<Buffer>,
+  asset: { storageKey: string; mimeType: string }
+) {
+  try {
+    return {
+      data: await readPrivateDocument(asset.storageKey),
+      mimeType: asset.mimeType
+    };
+  } catch {
+    return null;
+  }
 }
