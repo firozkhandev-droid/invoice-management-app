@@ -371,6 +371,71 @@ export async function issuePackingList(context: TenantContext, input: PackingLis
   });
 }
 
+export async function generatePackingListPdf(context: TenantContext, packingListId: string) {
+  const tenant = requireTenantContext(context);
+  assertPermission(tenant.role, "documents:download");
+
+  const packingList = await getPackingList(context, packingListId);
+  if (!packingList) throw new Error("Packing list not found.");
+  if (packingList.status !== "issued") throw new Error("Only issued packing lists can be generated as PDF.");
+  if (!packingList.packingListNumber) throw new Error("Issued packing list is missing its number.");
+
+  const { packingListPdfFilename, renderPackingListPdf } = await import("@/lib/packing-lists/packing-list-pdf");
+  const buffer = await renderPackingListPdf({
+    packingListNumber: packingList.packingListNumber,
+    packingListDate: packingList.packingListDate,
+    invoiceNumber: packingList.invoice?.invoiceNumber,
+    invoiceDate: packingList.invoice?.invoiceDate,
+    exportReference: packingList.exportReference,
+    containerNumber: packingList.containerNumber,
+    sealNumber: packingList.sealNumber,
+    shipmentMode: packingList.shipmentMode,
+    portOfLoading: packingList.portOfLoading,
+    portOfDischarge: packingList.portOfDischarge,
+    finalDestination: packingList.finalDestination,
+    company: asRecord(packingList.company),
+    buyer: asRecord(packingList.buyer),
+    consignee: asRecord(packingList.consigneeBuyer || packingList.buyer),
+    lines: packingList.lines.map((line) => ({
+      sortOrder: line.sortOrder,
+      packageNo: line.packageNo,
+      marksAndNumbers: line.marksAndNumbers,
+      sku: line.sku,
+      description: line.description,
+      hsnSac: line.hsnSac,
+      quantity: line.quantity.toString(),
+      unitCode: line.unitCode,
+      netWeightKg: line.netWeightKg.toString(),
+      grossWeightKg: line.grossWeightKg.toString(),
+      lengthCm: line.lengthCm?.toString(),
+      widthCm: line.widthCm?.toString(),
+      heightCm: line.heightCm?.toString(),
+      volumeCbm: line.volumeCbm.toString()
+    })),
+    totals: {
+      packages: packingList.totalPackages,
+      quantity: packingList.totalQuantity.toString(),
+      netWeightKg: packingList.totalNetWeightKg.toString(),
+      grossWeightKg: packingList.totalGrossWeightKg.toString(),
+      volumeCbm: packingList.totalVolumeCbm.toString()
+    },
+    notes: packingList.notes
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organisationId: tenant.organisationId,
+      actorUserId: tenant.userId,
+      action: "packing_list_pdf.generate",
+      entityType: "packing_list",
+      entityId: packingList.id,
+      metadata: { byteSize: buffer.byteLength }
+    }
+  });
+
+  return { buffer, filename: packingListPdfFilename(packingList.packingListNumber) };
+}
+
 async function validateMasterRefs(
   tx: Prisma.TransactionClient,
   organisationId: string,
@@ -416,4 +481,8 @@ async function updatePackingTotals(
       updatedById: userId
     }
   });
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

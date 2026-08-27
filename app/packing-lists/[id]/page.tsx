@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ClipboardCheck, PackagePlus, Save, Send, Trash2 } from "lucide-react";
+import { ClipboardCheck, Download, PackagePlus, Save, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTenantContextForUser } from "@/lib/organisations/membership";
@@ -41,6 +41,12 @@ export default async function PackingListDetailPage({
           </div>
         </div>
         <div className="toolbar">
+          {packingList.status === "issued" ? (
+            <a className="button" href={`/api/packing-lists/${packingList.id}/pdf`} target="_blank">
+              <Download size={18} />
+              Download PDF
+            </a>
+          ) : null}
           <Link className="button subtle" href="/packing-lists">Back to list</Link>
         </div>
       </header>
