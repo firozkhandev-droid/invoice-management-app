@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ClipboardCheck, Download, PackagePlus, Save, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, PackagePlus, Save, Search, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTenantContextForUser } from "@/lib/organisations/membership";
-import { getPackingList, getPackingListWorkspace, packingListIssueRequirements } from "@/lib/packing-lists/packing-list-service";
+import { getPackingList, getPackingListWorkspace, listPackingLists, packingListIssueRequirements } from "@/lib/packing-lists/packing-list-service";
 
 export default async function PackingListDetailPage({
   params
@@ -18,9 +18,10 @@ export default async function PackingListDetailPage({
   if (!context) redirect("/register");
 
   const { id } = await params;
-  const [packingList, workspace] = await Promise.all([
+  const [packingList, workspace, packingLists] = await Promise.all([
     getPackingList(context, id),
-    getPackingListWorkspace(context)
+    getPackingListWorkspace(context),
+    listPackingLists(context)
   ]);
 
   if (!packingList) notFound();
@@ -31,170 +32,157 @@ export default async function PackingListDetailPage({
 
   return (
     <AppShell>
-      <header className="page-header">
-        <div>
-          <p className="muted">Packing list</p>
-          <h1>{packingList.packingListNumber || "Unnumbered draft"}</h1>
-          <div className="meta-row">
-            <span className={`status-badge ${packingList.status}`}>{packingList.status}</span>
-            <span>Version {packingList.version}</span>
-            <span>{packingList.packingListDate.toISOString().slice(0, 10)}</span>
-          </div>
-        </div>
-        <div className="toolbar">
-          {packingList.status === "issued" ? (
-            <a className="button" href={`/api/packing-lists/${packingList.id}/pdf`} target="_blank">
-              <Download size={18} />
-              Download PDF
-            </a>
-          ) : null}
-          <Link className="button subtle" href="/packing-lists">Back to list</Link>
-        </div>
-      </header>
+      <div className="export-workspace">
+        <ExportDocumentNav />
 
-      <div className="summary-grid">
-        <div className="stat">
-          <span className="muted">Packages</span>
-          <strong>{packingList.totalPackages}</strong>
-        </div>
-        <div className="stat accent">
-          <span className="muted">Net weight</span>
-          <strong>{packingList.totalNetWeightKg.toString()} kg</strong>
-        </div>
-        <div className="stat warning">
-          <span className="muted">Gross weight</span>
-          <strong>{packingList.totalGrossWeightKg.toString()} kg</strong>
-        </div>
-      </div>
-
-      <div className="grid two-column wide-left">
-        <section className="panel">
-          <div className="section-title">
+        <aside className="export-list-rail">
+          <div className="rail-header">
             <div>
-              <p className="muted">Shipment snapshot</p>
-              <h2>Document overview</h2>
-            </div>
-            <ClipboardCheck size={20} />
-          </div>
-          <table className="table compact">
-            <tbody>
-              <tr><th>Invoice</th><td>{packingList.invoice ? <Link href={`/invoices/${packingList.invoice.id}`}>{packingList.invoice.invoiceNumber || packingList.invoice.id}</Link> : "-"}</td></tr>
-              <tr><th>Company</th><td>{packingList.company?.legalName || "-"}</td></tr>
-              <tr><th>Buyer</th><td>{packingList.buyer?.displayName || "-"}</td></tr>
-              <tr><th>Consignee</th><td>{packingList.consigneeBuyer?.displayName || "-"}</td></tr>
-              <tr><th>Container / seal</th><td>{packingList.containerNumber || "-"} / {packingList.sealNumber || "-"}</td></tr>
-              <tr><th>Ports</th><td>{packingList.portOfLoading || "-"} to {packingList.portOfDischarge || "-"}</td></tr>
-              <tr><th>Final destination</th><td>{packingList.finalDestination || "-"}</td></tr>
-              <tr><th>CBM</th><td>{packingList.totalVolumeCbm.toString()}</td></tr>
-            </tbody>
-          </table>
-
-          <div className="section-title top-space">
-            <div>
-              <p className="muted">Package rows</p>
-              <h2>{packingList.lines.length} lines</h2>
+              <h2>Packing Lists</h2>
+              <p className="muted">{packingLists.length} documents</p>
             </div>
           </div>
-          {packingList.lines.length === 0 ? (
-            <div className="empty-state">No packing rows yet. Add package details before issuing.</div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Package</th>
-                    <th>Description</th>
-                    <th>Qty</th>
-                    <th>Net</th>
-                    <th>Gross</th>
-                    <th>CBM</th>
-                    {canEdit ? <th>Action</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {packingList.lines.map((line) => (
-                    <tr key={line.id}>
-                      <td>{line.sortOrder}</td>
-                      <td>
-                        <strong>{line.packageNo || "-"}</strong>
-                        <p className="muted">{line.marksAndNumbers || line.sku || "-"}</p>
-                      </td>
-                      <td>
-                        {line.description}
-                        <p className="muted">HSN/SAC: {line.hsnSac || "-"} | {line.lengthCm?.toString() || "-"} x {line.widthCm?.toString() || "-"} x {line.heightCm?.toString() || "-"} cm</p>
-                      </td>
-                      <td>{line.quantity.toString()} {line.unitCode || ""}</td>
-                      <td>{line.netWeightKg.toString()} kg</td>
-                      <td>{line.grossWeightKg.toString()} kg</td>
-                      <td>{line.volumeCbm.toString()}</td>
-                      {canEdit ? (
-                        <td>
-                          <form action="/api/packing-lists/lines/delete" method="post">
-                            <input type="hidden" name="packingListId" value={packingList.id} />
-                            <input type="hidden" name="lineId" value={line.id} />
-                            <input type="hidden" name="expectedVersion" value={packingList.version} />
-                            <button className="icon-button danger" title="Delete packing line" type="submit"><Trash2 size={16} /></button>
-                          </form>
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+          <form className="rail-search" action="/packing-lists" method="get">
+            <Search size={16} />
+            <input name="q" placeholder="Search packing lists..." />
+          </form>
+          <div className="document-list">
+            {packingLists.map((item) => (
+              <Link className={`document-list-item ${item.id === packingList.id ? "active" : ""}`} href={`/packing-lists/${item.id}`} key={item.id}>
+                <span>
+                  <strong>{item.buyer?.displayName || "No buyer"}</strong>
+                  <small>{item.packingListNumber || "Draft packing list"}</small>
+                  <small>{item.packingListDate.toISOString().slice(0, 10)}</small>
+                </span>
+                <span className={`status-badge ${item.status}`}>{item.status}</span>
+              </Link>
+            ))}
+          </div>
+        </aside>
 
-        <aside className="grid">
-          <section className="panel">
-            <div className="section-title">
-              <div>
-                <p className="muted">Finalise</p>
-                <h2>Issue packing list</h2>
-              </div>
-              <Send size={20} />
+        <main className="document-editor">
+          <div className="document-toolbar">
+            <div className="document-crumb">
+              <strong>Documents</strong>
+              <span>|</span>
+              <span>Packing Lists</span>
             </div>
+            <div className="toolbar">
+              <Link className="button subtle tiny" href="/packing-lists">
+                <ArrowLeft size={16} />
+                Back to List
+              </Link>
+              {canEdit ? (
+                <button className="button tiny" form="packing-list-draft-form" type="submit">
+                  <Save size={16} />
+                  Save Draft
+                </button>
+              ) : null}
+              {packingList.status === "issued" ? (
+                <a className="button tiny" href={`/api/packing-lists/${packingList.id}/pdf`} target="_blank" rel="noreferrer">
+                  <Download size={16} />
+                  PDF
+                </a>
+              ) : null}
+            </div>
+          </div>
+
+          <section className="document-canvas">
+            <div className="document-title-row">
+              <h1>PACKING LIST</h1>
+              <span>Page 1 of 1</span>
+            </div>
+
+            {canEdit ? (
+              <form id="packing-list-draft-form" action="/api/packing-lists" method="post">
+                <input type="hidden" name="packingListId" value={packingList.id} />
+                <input type="hidden" name="version" value={packingList.version} />
+                <PackingListDocumentFields packingList={packingList} workspace={workspace} />
+              </form>
+            ) : (
+              <PackingListSnapshot packingList={packingList} />
+            )}
+
             {canEdit && issueRequirements.length > 0 ? (
-              <p className="notice error">Before issuing: {issueRequirements.join(", ")}.</p>
+              <p className="notice error top-space">Before issuing: {issueRequirements.join(", ")}.</p>
             ) : null}
-            <form action="/api/packing-lists/issue" method="post">
-              <input type="hidden" name="packingListId" value={packingList.id} />
-              <input type="hidden" name="expectedVersion" value={packingList.version} />
-              <button className="button" type="submit" disabled={!canIssue}>
-                <Send size={18} />
-                Issue packing list
-              </button>
-            </form>
-          </section>
 
-          {canEdit ? (
-            <>
-              <section className="panel">
-                <div className="section-title">
-                  <div>
-                    <p className="muted">Draft details</p>
-                    <h2>Update shipment</h2>
-                  </div>
-                  <Save size={20} />
-                </div>
-                <form className="form" action="/api/packing-lists" method="post">
-                  <input type="hidden" name="packingListId" value={packingList.id} />
-                  <input type="hidden" name="version" value={packingList.version} />
-                  <PackingListFields packingList={packingList} workspace={workspace} />
-                  <button className="button" type="submit">Save draft</button>
-                </form>
-              </section>
+            <div className="document-action-row">
+              <form action="/api/packing-lists/issue" method="post">
+                <input type="hidden" name="packingListId" value={packingList.id} />
+                <input type="hidden" name="expectedVersion" value={packingList.version} />
+                <button className="button" type="submit" disabled={!canIssue}>
+                  <Send size={18} />
+                  Issue packing list
+                </button>
+              </form>
+            </div>
 
-              <section className="panel">
-                <div className="section-title">
-                  <div>
-                    <p className="muted">Package row</p>
-                    <h2>Add line</h2>
-                  </div>
-                  <PackagePlus size={20} />
+            <section className="document-lines">
+              <div className="document-section-heading">
+                <h2>Package Details</h2>
+                <span className="badge neutral">{packingList.lines.length} lines</span>
+              </div>
+              {packingList.lines.length === 0 ? (
+                <div className="empty-state">No packing rows yet. Add package details before issuing.</div>
+              ) : (
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Package / Marks</th>
+                        <th>Item / HSN</th>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>Net KG</th>
+                        <th>Gross KG</th>
+                        <th>CBM</th>
+                        {canEdit ? <th>Action</th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {packingList.lines.map((line) => (
+                        <tr key={line.id}>
+                          <td>{line.sortOrder}</td>
+                          <td>
+                            <strong>{line.packageNo || "-"}</strong>
+                            <p className="muted">{line.marksAndNumbers || "-"}</p>
+                          </td>
+                          <td>
+                            {line.sku || "-"}
+                            <p className="muted">{line.hsnSac || "-"}</p>
+                          </td>
+                          <td>
+                            {line.description}
+                            <p className="muted">{line.lengthCm?.toString() || "-"} x {line.widthCm?.toString() || "-"} x {line.heightCm?.toString() || "-"} cm</p>
+                          </td>
+                          <td>{line.quantity.toString()} {line.unitCode || ""}</td>
+                          <td>{line.netWeightKg.toString()}</td>
+                          <td>{line.grossWeightKg.toString()}</td>
+                          <td>{line.volumeCbm.toString()}</td>
+                          {canEdit ? (
+                            <td>
+                              <form action="/api/packing-lists/lines/delete" method="post">
+                                <input type="hidden" name="packingListId" value={packingList.id} />
+                                <input type="hidden" name="lineId" value={line.id} />
+                                <input type="hidden" name="expectedVersion" value={packingList.version} />
+                                <button className="icon-button danger" title="Delete packing line" type="submit"><Trash2 size={16} /></button>
+                              </form>
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <form className="form" action="/api/packing-lists/lines" method="post">
+              )}
+            </section>
+
+            {canEdit ? (
+              <details className="details top-space">
+                <summary><PackagePlus size={16} /> Add package line</summary>
+                <form className="form top-space" action="/api/packing-lists/lines" method="post">
                   <input type="hidden" name="packingListId" value={packingList.id} />
                   <input type="hidden" name="expectedVersion" value={packingList.version} />
                   <input type="hidden" name="sortOrder" value={packingList.lines.length + 1} />
@@ -238,16 +226,16 @@ export default async function PackingListDetailPage({
                   </div>
                   <button className="button" type="submit">Add line</button>
                 </form>
-              </section>
-            </>
-          ) : null}
-        </aside>
+              </details>
+            ) : null}
+          </section>
+        </main>
       </div>
     </AppShell>
   );
 }
 
-function PackingListFields({
+function PackingListDocumentFields({
   packingList,
   workspace
 }: {
@@ -255,48 +243,118 @@ function PackingListFields({
   workspace: Awaited<ReturnType<typeof getPackingListWorkspace>>;
 }) {
   return (
-    <>
-      <div className="field">
-        <label htmlFor="packingListDate">Date</label>
-        <input id="packingListDate" name="packingListDate" type="date" defaultValue={packingList.packingListDate.toISOString().slice(0, 10)} required />
+    <div className="document-grid">
+      <div className="doc-field span-2 tall">
+        <label>Exporter</label>
+        <select name="companyId" defaultValue={packingList.companyId || ""}>
+          <option value="">Select exporter</option>
+          {workspace.companies.map((company) => <option key={company.id} value={company.id}>{company.legalName}</option>)}
+        </select>
+        <p>{packingList.company?.addressLine1 || "-"}</p>
+        <p>{packingList.company?.city || ""}{packingList.company?.state ? `, ${packingList.company.state}` : ""}</p>
+        <p>{packingList.company?.gstin ? `GST: ${packingList.company.gstin}` : ""}</p>
       </div>
-      <div className="form-grid">
-        <div className="field">
-          <label htmlFor="companyId">Company</label>
-          <select id="companyId" name="companyId" defaultValue={packingList.companyId || ""}>
-            <option value="">None</option>
-            {workspace.companies.map((company) => <option key={company.id} value={company.id}>{company.legalName}</option>)}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="buyerId">Buyer</label>
-          <select id="buyerId" name="buyerId" defaultValue={packingList.buyerId || ""}>
-            <option value="">None</option>
-            {workspace.buyers.map((buyer) => <option key={buyer.id} value={buyer.id}>{buyer.displayName}</option>)}
-          </select>
+      <div className="doc-field">
+        <label htmlFor="packingListDate">Packing List Number & Date</label>
+        <div className="inline-doc-fields">
+          <strong>{packingList.packingListNumber || "Draft"}</strong>
+          <input id="packingListDate" name="packingListDate" type="date" defaultValue={packingList.packingListDate.toISOString().slice(0, 10)} required />
         </div>
       </div>
-      <div className="field">
-        <label htmlFor="consigneeBuyerId">Consignee</label>
+      <div className="doc-field">
+        <label htmlFor="exportReference">Exporter Reference</label>
+        <input id="exportReference" name="exportReference" defaultValue={packingList.exportReference || ""} />
+      </div>
+      <div className="doc-field">
+        <label>Invoice Reference</label>
+        <p>{packingList.invoice?.invoiceNumber || "-"}</p>
+        <p>{packingList.invoice?.invoiceDate.toISOString().slice(0, 10) || ""}</p>
+      </div>
+      <div className="doc-field">
+        <label htmlFor="consigneeBuyerId">Consignee (If Any)</label>
         <select id="consigneeBuyerId" name="consigneeBuyerId" defaultValue={packingList.consigneeBuyerId || ""}>
           <option value="">Same as buyer / none</option>
           {workspace.buyers.map((buyer) => <option key={buyer.id} value={buyer.id}>{buyer.displayName}</option>)}
         </select>
       </div>
-      <div className="form-grid">
-        <div className="field"><label htmlFor="exportReference">Export reference</label><input id="exportReference" name="exportReference" defaultValue={packingList.exportReference || ""} /></div>
-        <div className="field"><label htmlFor="shipmentMode">Shipment mode</label><input id="shipmentMode" name="shipmentMode" defaultValue={packingList.shipmentMode || ""} /></div>
+      <div className="doc-field">
+        <label htmlFor="buyerId">Buyer</label>
+        <select id="buyerId" name="buyerId" defaultValue={packingList.buyerId || ""}>
+          <option value="">Select buyer</option>
+          {workspace.buyers.map((buyer) => <option key={buyer.id} value={buyer.id}>{buyer.displayName}</option>)}
+        </select>
+        <p>{packingList.buyer?.email || ""}</p>
       </div>
-      <div className="form-grid">
-        <div className="field"><label htmlFor="containerNumber">Container no</label><input id="containerNumber" name="containerNumber" defaultValue={packingList.containerNumber || ""} /></div>
-        <div className="field"><label htmlFor="sealNumber">Seal no</label><input id="sealNumber" name="sealNumber" defaultValue={packingList.sealNumber || ""} /></div>
+      <div className="doc-field">
+        <label htmlFor="shipmentMode">Shipment Mode</label>
+        <input id="shipmentMode" name="shipmentMode" defaultValue={packingList.shipmentMode || ""} placeholder="By road / Sea / Air" />
       </div>
-      <div className="form-grid">
-        <div className="field"><label htmlFor="portOfLoading">Port of loading</label><input id="portOfLoading" name="portOfLoading" defaultValue={packingList.portOfLoading || ""} /></div>
-        <div className="field"><label htmlFor="portOfDischarge">Port of discharge</label><input id="portOfDischarge" name="portOfDischarge" defaultValue={packingList.portOfDischarge || ""} /></div>
+      <div className="doc-field">
+        <label htmlFor="containerNumber">Container & Seal</label>
+        <div className="inline-doc-fields">
+          <input id="containerNumber" name="containerNumber" defaultValue={packingList.containerNumber || ""} placeholder="Container no" />
+          <input id="sealNumber" name="sealNumber" defaultValue={packingList.sealNumber || ""} placeholder="Seal no" />
+        </div>
       </div>
-      <div className="field"><label htmlFor="finalDestination">Final destination</label><input id="finalDestination" name="finalDestination" defaultValue={packingList.finalDestination || ""} /></div>
-      <div className="field"><label htmlFor="notes">Notes</label><textarea id="notes" name="notes" defaultValue={packingList.notes || ""} /></div>
-    </>
+      <div className="doc-field">
+        <label htmlFor="portOfLoading">Port of Loading</label>
+        <input id="portOfLoading" name="portOfLoading" defaultValue={packingList.portOfLoading || ""} />
+      </div>
+      <div className="doc-field">
+        <label htmlFor="portOfDischarge">Port of Discharge</label>
+        <input id="portOfDischarge" name="portOfDischarge" defaultValue={packingList.portOfDischarge || ""} />
+      </div>
+      <div className="doc-field">
+        <label htmlFor="finalDestination">Country / Final Destination</label>
+        <input id="finalDestination" name="finalDestination" defaultValue={packingList.finalDestination || ""} />
+      </div>
+      <div className="doc-field span-3">
+        <label htmlFor="notes">Notes / Declaration</label>
+        <textarea id="notes" name="notes" defaultValue={packingList.notes || ""} />
+      </div>
+    </div>
+  );
+}
+
+function PackingListSnapshot({
+  packingList
+}: {
+  packingList: NonNullable<Awaited<ReturnType<typeof getPackingList>>>;
+}) {
+  return (
+    <div className="document-grid">
+      <div className="doc-field span-2 tall">
+        <label>Exporter</label>
+        <strong>{packingList.company?.legalName || "-"}</strong>
+        <p>{packingList.company?.addressLine1 || "-"}</p>
+        <p>{packingList.company?.city || ""}{packingList.company?.state ? `, ${packingList.company.state}` : ""}</p>
+        <p>{packingList.company?.gstin ? `GST: ${packingList.company.gstin}` : ""}</p>
+      </div>
+      <div className="doc-field"><label>Packing List Number & Date</label><p>{packingList.packingListNumber || "-"}</p><p>{packingList.packingListDate.toISOString().slice(0, 10)}</p></div>
+      <div className="doc-field"><label>Exporter Reference</label><p>{packingList.exportReference || "-"}</p></div>
+      <div className="doc-field"><label>Invoice Reference</label><p>{packingList.invoice?.invoiceNumber || "-"}</p></div>
+      <div className="doc-field"><label>Consignee (If Any)</label><p>{packingList.consigneeBuyer?.displayName || "-"}</p></div>
+      <div className="doc-field"><label>Buyer</label><p>{packingList.buyer?.displayName || "-"}</p></div>
+      <div className="doc-field"><label>Shipment Mode</label><p>{packingList.shipmentMode || "-"}</p></div>
+      <div className="doc-field"><label>Container & Seal</label><p>{packingList.containerNumber || "-"} / {packingList.sealNumber || "-"}</p></div>
+      <div className="doc-field"><label>Port of Loading</label><p>{packingList.portOfLoading || "-"}</p></div>
+      <div className="doc-field"><label>Port of Discharge</label><p>{packingList.portOfDischarge || "-"}</p></div>
+      <div className="doc-field"><label>Country / Final Destination</label><p>{packingList.finalDestination || "-"}</p></div>
+      <div className="doc-field span-3"><label>Notes / Declaration</label><p>{packingList.notes || "-"}</p></div>
+    </div>
+  );
+}
+
+function ExportDocumentNav() {
+  return (
+    <aside className="export-doc-nav">
+      <div className="rail-header">
+        <h2>Export Documents</h2>
+      </div>
+      <nav>
+        <Link href="/invoices"><FileText size={16} /><span>Commercial Invoices<small>Final export invoices</small></span></Link>
+        <Link className="active" href="/packing-lists"><PackagePlus size={16} /><span>Packing Lists<small>Export package contents</small></span></Link>
+      </nav>
+    </aside>
   );
 }
