@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
-import { BadgeCheck, Image as ImageIcon, Landmark, PenLine } from "lucide-react";
+import { BadgeCheck, Image as ImageIcon, Landmark, PenLine, Upload } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTenantContextForUser } from "@/lib/organisations/membership";
 import { listCompanies } from "@/lib/companies/company-service";
 
-export default async function CompaniesPage() {
+export default async function CompaniesPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -19,6 +23,7 @@ export default async function CompaniesPage() {
   }
 
   const companies = await listCompanies(context);
+  const query = await searchParams;
 
   return (
     <AppShell>
@@ -31,6 +36,7 @@ export default async function CompaniesPage() {
           </div>
         </div>
       </header>
+      {query?.error ? <p className="notice error">{query.error}</p> : null}
       <div className="summary-grid">
         <div className="stat">
           <div className="kpi-row">
@@ -72,6 +78,7 @@ export default async function CompaniesPage() {
                     <th>Company</th>
                     <th>Tax IDs</th>
                     <th>Address</th>
+                    <th>Branding</th>
                     <th>Bank accounts</th>
                   </tr>
                 </thead>
@@ -96,6 +103,16 @@ export default async function CompaniesPage() {
                         {company.city}, {company.state} {company.postcode}
                         <br />
                         <span className="muted">{company.phone || "-"} {company.email ? `| ${company.email}` : ""}</span>
+                      </td>
+                      <td>
+                        <div className="brand-asset-list">
+                          <span className={company.logoAsset ? "badge success" : "badge neutral"}>
+                            Logo: {company.logoAsset?.originalName || "Pending"}
+                          </span>
+                          <span className={company.signatureAsset ? "badge success" : "badge neutral"}>
+                            Signature: {company.signatureAsset?.originalName || "Pending"}
+                          </span>
+                        </div>
                       </td>
                       <td>
                         {company.bankAccounts.length === 0 ? (
@@ -129,14 +146,14 @@ export default async function CompaniesPage() {
               <PenLine size={20} />
             </div>
             <div className="grid">
-              <div className="asset-placeholder">
-                <strong>Logo upload boundary</strong>
-                <p className="helper-text">Reserved for company logo upload. Images are stored privately and can be wired into invoice PDFs without changing invoice data.</p>
-              </div>
-              <div className="asset-placeholder">
-                <strong>Signature upload boundary</strong>
-                <p className="helper-text">Reserved for authorised signature upload. Until enabled, PDFs use the signatory name and designation from the legal profile.</p>
-              </div>
+              {companies.length === 0 ? (
+                <div className="empty-state compact">Create a company first, then upload logo and signature assets.</div>
+              ) : (
+                <>
+                  <BrandAssetForm companies={companies} kind="company_logo" title="Company logo" />
+                  <BrandAssetForm companies={companies} kind="company_signature" title="Authorised signature" />
+                </>
+              )}
             </div>
           </section>
           <section className="panel">
@@ -305,5 +322,43 @@ export default async function CompaniesPage() {
         </aside>
       </div>
     </AppShell>
+  );
+}
+
+function BrandAssetForm({
+  companies,
+  kind,
+  title
+}: {
+  companies: Awaited<ReturnType<typeof listCompanies>>;
+  kind: "company_logo" | "company_signature";
+  title: string;
+}) {
+  return (
+    <form className="asset-upload-card" action="/api/companies/brand-assets" method="post" encType="multipart/form-data">
+      <input type="hidden" name="kind" value={kind} />
+      <div>
+        <strong>{title}</strong>
+        <p className="helper-text">PNG, JPEG, or WebP up to 2MB. Used on invoice and packing-list PDFs where supported.</p>
+      </div>
+      <div className="field">
+        <label htmlFor={`${kind}-company`}>Company</label>
+        <select id={`${kind}-company`} name="companyId" required>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.legalName}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={`${kind}-file`}>Image file</label>
+        <input id={`${kind}-file`} name="file" type="file" accept="image/png,image/jpeg,image/webp" required />
+      </div>
+      <button className="button subtle" type="submit">
+        <Upload size={16} />
+        Upload
+      </button>
+    </form>
   );
 }

@@ -42,6 +42,14 @@ export type InvoicePdfData = {
   billingAddress: JsonRecord | null;
   shippingAddress: JsonRecord | null;
   bank: JsonRecord | null;
+  logo?: {
+    data: Buffer;
+    mimeType: string;
+  } | null;
+  signature?: {
+    data: Buffer;
+    mimeType: string;
+  } | null;
   lines: InvoicePdfLine[];
   totals: {
     subtotal: string | number;
@@ -125,7 +133,7 @@ function drawHeaderGrid(doc: PDFKit.PDFDocument, data: InvoicePdfData, y: number
     ...formatAddressLines(data.company),
     ids(data.company).join(" | ")
   ], true);
-  drawMonogram(doc, tableX + leftW - 48, y + 12, companyName);
+  drawBrandMark(doc, tableX + leftW - 48, y + 12, companyName, data.logo);
 
   const rightX = tableX + leftW;
   drawCell(doc, rightX, y, rightW / 2, 49, data.documentTitle === "Credit Note" ? "Credit note no." : "Invoice no.", [data.invoiceNumber], true);
@@ -277,6 +285,7 @@ function drawBankDeclarationSignature(doc: PDFKit.PDFDocument, data: InvoicePdfD
     text(data.company, "signatoryName"),
     text(data.company, "signatoryDesignation", "Authorised Signatory")
   ]);
+  drawSignatureImage(doc, tableX + leftW + 18, y + 31, rightW - 36, 22, data.signature);
   doc.moveTo(tableX + leftW + 18, y + 56).lineTo(tableX + leftW + rightW - 18, y + 56).strokeColor(colors.border).stroke();
   drawCell(doc, tableX, y + 82, tableWidth, 58, "Declaration", [
     data.declaration || "We declare that this Invoice shows the actual prices of the goods described and that all particulars are true and correct."
@@ -327,7 +336,22 @@ function addPageNumbers(doc: PDFKit.PDFDocument) {
   }
 }
 
-function drawMonogram(doc: PDFKit.PDFDocument, x: number, y: number, name: string) {
+function drawBrandMark(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  name: string,
+  logo: InvoicePdfData["logo"]
+) {
+  if (logo && canDrawImage(logo.mimeType)) {
+    try {
+      doc.image(logo.data, x - 6, y - 2, { fit: [46, 42], align: "center", valign: "center" });
+      return;
+    } catch {
+      // Fall back to initials if an uploaded image cannot be decoded by PDFKit.
+    }
+  }
+
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -340,6 +364,27 @@ function drawMonogram(doc: PDFKit.PDFDocument, x: number, y: number, name: strin
     align: "center"
   });
   doc.fillColor(colors.ink);
+}
+
+function drawSignatureImage(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  signature: InvoicePdfData["signature"]
+) {
+  if (!signature || !canDrawImage(signature.mimeType)) return;
+
+  try {
+    doc.image(signature.data, x, y, { fit: [width, height], valign: "center" });
+  } catch {
+    // Keep the signature line visible if the uploaded image cannot be decoded.
+  }
+}
+
+function canDrawImage(mimeType: string): boolean {
+  return mimeType === "image/png" || mimeType === "image/jpeg" || mimeType === "image/jpg";
 }
 
 function text(record: JsonRecord | null | undefined, key: string, fallback = ""): string {

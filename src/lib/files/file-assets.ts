@@ -13,6 +13,7 @@ export type PreparedFileAsset = {
   mimeType: string;
   byteSize: number;
   checksumSha256: string;
+  data: Buffer;
 };
 
 const allowedImageTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -48,7 +49,8 @@ export async function prepareFileAsset(
     storageKey,
     mimeType: file.type,
     byteSize: file.size,
-    checksumSha256: crypto.createHash("sha256").update(bytes).digest("hex")
+    checksumSha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+    data: bytes
   };
 }
 

@@ -792,6 +792,24 @@ button:disabled {
   padding: 16px;
 }
 
+.asset-upload-card {
+  background: #f8fafc;
+  border: 1px dashed #b8c2cc;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.asset-upload-card .helper-text {
+  margin-top: 6px;
+}
+
+.brand-asset-list {
+  display: grid;
+  gap: 8px;
+}
+
 .helper-text {
   color: var(--muted);
   font-size: 13px;

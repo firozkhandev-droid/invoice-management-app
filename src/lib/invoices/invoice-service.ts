@@ -104,7 +104,7 @@ export async function getInvoice(context: TenantContext, invoiceId: string) {
   return prisma.invoice.findFirst({
     where: { id: invoiceId, organisationId: tenant.organisationId },
     include: {
-      company: true,
+      company: { include: { logoAsset: true, signatureAsset: true } },
       buyer: true,
       consigneeBuyer: true,
       billingAddress: true,
@@ -800,11 +800,23 @@ export async function generateInvoicePdf(context: TenantContext, invoiceId: stri
   }
   if (!invoice.invoiceNumber) throw new Error("Issued invoice is missing its invoice number.");
 
-  const [{ invoicePdfFilename, renderInvoicePdf }, { invoicePdfStorageKey, writePrivateDocument }] = await Promise.all([
+  const [{ invoicePdfFilename, renderInvoicePdf }, { invoicePdfStorageKey, readPrivateDocument, writePrivateDocument }] = await Promise.all([
     import("@/lib/invoices/invoice-pdf"),
     import("@/lib/documents/document-storage")
   ]);
-  const pdfData = buildInvoicePdfData(invoice);
+  const companyAssets = invoice.company as (typeof invoice.company & {
+    logoAsset?: { storageKey: string; mimeType: string } | null;
+    signatureAsset?: { storageKey: string; mimeType: string } | null;
+  }) | null;
+  const [logo, signature] = await Promise.all([
+    companyAssets?.logoAsset ? readAssetForPdf(readPrivateDocument, companyAssets.logoAsset) : Promise.resolve(null),
+    companyAssets?.signatureAsset ? readAssetForPdf(readPrivateDocument, companyAssets.signatureAsset) : Promise.resolve(null)
+  ]);
+  const pdfData = {
+    ...buildInvoicePdfData(invoice),
+    logo,
+    signature
+  };
   const buffer = await renderInvoicePdf(pdfData);
   const stored = await writePrivateDocument(
     invoicePdfStorageKey(tenant.organisationId, invoice.id),
@@ -947,6 +959,20 @@ function invoiceLinesFromSnapshot(
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+async function readAssetForPdf(
+  readPrivateDocument: (storageKey: string) => Promise<Buffer>,
+  asset: { storageKey: string; mimeType: string }
+) {
+  try {
+    return {
+      data: await readPrivateDocument(asset.storageKey),
+      mimeType: asset.mimeType
+    };
+  } catch {
+    return null;
+  }
 }
 
 function valueOrDecimal(value: unknown, fallback: Prisma.Decimal): string {
