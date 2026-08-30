@@ -3,7 +3,7 @@ import path from "node:path";
 import { env } from "@/lib/env";
 import type { TenantContext } from "@/lib/repositories/tenant-context";
 
-export type FileAssetKind = "company_logo" | "company_signature";
+export type FileAssetKind = "company_logo" | "company_signature" | "item_image";
 
 export type PreparedFileAsset = {
   organisationId: string;
@@ -23,8 +23,9 @@ export function validateCompanyImageAsset(file: File, kind: FileAssetKind): void
     throw new Error(`${kind} must be a PNG, JPEG, or WebP image.`);
   }
 
-  if (file.size > 2 * 1024 * 1024) {
-    throw new Error(`${kind} must be 2 MB or smaller.`);
+  const maxSize = kind === "item_image" ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
+  if (file.size > maxSize) {
+    throw new Error(`${kind} must be ${maxSize / 1024 / 1024} MB or smaller.`);
   }
 }
 

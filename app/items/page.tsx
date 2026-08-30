@@ -34,7 +34,7 @@ type TaxRateForForm = ItemMasterData["taxRates"][number];
 export default async function ItemsPage({
   searchParams
 }: {
-  searchParams?: Promise<{ q?: string; category?: string; status?: string; sort?: string }>;
+  searchParams?: Promise<{ q?: string; category?: string; status?: string; sort?: string; error?: string; notice?: string }>;
 }) {
   const user = await getCurrentUser();
 
@@ -49,7 +49,7 @@ export default async function ItemsPage({
   }
 
   const filters = await searchParams;
-  const { units, taxRates, items, categories } = await listItemMasters(context, filters);
+  const { units, taxRates, items, categories, subcategories } = await listItemMasters(context, filters);
   const query = new URLSearchParams();
   Object.entries(filters || {}).forEach(([key, value]) => {
     if (value) query.set(key, value);
@@ -68,6 +68,8 @@ export default async function ItemsPage({
 
   return (
     <AppShell>
+      {filters?.error ? <p className="notice error">{filters.error}</p> : null}
+      {filters?.notice ? <p className="notice success">{filters.notice}</p> : null}
       <div className="exports-workspace items-workspace">
         <aside className="exports-rail">
           <div className="exports-rail-header">
@@ -221,11 +223,11 @@ export default async function ItemsPage({
                           <div className="icon-row">
                             <details className="item-editor">
                               <summary className="icon-button" title="View and edit item"><Eye size={16} /></summary>
-                              <ItemEditor item={item} units={units} taxRates={taxRates} mode="edit" />
+                              <ItemEditor item={item} units={units} taxRates={taxRates} categories={categories} subcategories={subcategories} mode="edit" />
                             </details>
                             <details className="item-editor">
                               <summary className="icon-button" title="Quick edit item"><Pencil size={16} /></summary>
-                              <ItemEditor item={item} units={units} taxRates={taxRates} mode="edit" />
+                              <ItemEditor item={item} units={units} taxRates={taxRates} categories={categories} subcategories={subcategories} mode="edit" />
                             </details>
                             <form action="/api/items/duplicate" method="post">
                               <input type="hidden" name="itemId" value={item.id} />
@@ -247,7 +249,7 @@ export default async function ItemsPage({
 
           <details className="add-item-drawer" id="add-item">
             <summary><PackagePlus size={18} /> Add New Item</summary>
-            <ItemEditor units={units} taxRates={taxRates} mode="create" />
+            <ItemEditor units={units} taxRates={taxRates} categories={categories} subcategories={subcategories} mode="create" />
           </details>
         </main>
       </div>
@@ -284,7 +286,7 @@ function ItemThumb({ item }: { item: ItemForForm }) {
 
   return (
     <div className={`item-thumb ${item.imageAssetId ? "ready" : ""}`}>
-      {item.imageAssetId ? <ImagePlus size={18} /> : label}
+      {item.imageAssetId ? <img alt={item.name} src={`/api/items/${item.id}/image`} /> : label}
     </div>
   );
 }
@@ -292,11 +294,15 @@ function ItemThumb({ item }: { item: ItemForForm }) {
 function ItemEditor({
   item,
   mode,
+  categories,
+  subcategories,
   taxRates,
   units
 }: {
   item?: ItemForForm;
   mode: "create" | "edit";
+  categories: string[];
+  subcategories: string[];
   units: UnitForForm[];
   taxRates: TaxRateForForm[];
 }) {
@@ -323,7 +329,7 @@ function ItemEditor({
           {item ? <input type="hidden" name="itemId" value={item.id} /> : null}
           <section className="form-card open">
             <h3><FileSpreadsheet size={17} /> Basic Details</h3>
-            <ItemFields item={item} units={units} taxRates={taxRates} />
+            <ItemFields item={item} units={units} taxRates={taxRates} categories={categories} subcategories={subcategories} />
           </section>
           <ItemAccordion title="Category Attributes" icon={<Tags size={17} />}>
             <div className="form-grid three">
@@ -356,12 +362,23 @@ function ItemEditor({
           <h3>Product Images</h3>
           {item ? <ItemThumb item={item} /> : <div className="item-thumb">NE</div>}
           <button className="button subtle" type="button"><Eye size={15} /> View Gallery</button>
-          <div className="upload-drop">
-            <ImagePlus size={28} />
-            <strong>Upload Multiple Images</strong>
-            <span>Drag and drop or click to select files</span>
-            <small>{item?.imageAssetId ? "1 reference linked" : "0 images uploaded"}</small>
-          </div>
+          {item ? (
+            <form className="upload-drop" action="/api/items/images" method="post" encType="multipart/form-data">
+              <input type="hidden" name="itemId" value={item.id} />
+              <ImagePlus size={28} />
+              <strong>Upload Product Image</strong>
+              <span>PNG, JPEG, or WebP up to 10MB</span>
+              <input name="file" type="file" accept="image/png,image/jpeg,image/webp" required />
+              <button className="button subtle tiny" type="submit"><Upload size={15} /> Upload</button>
+              <small>{item.imageAssetId ? "Image linked. Upload again to replace." : "0 images uploaded"}</small>
+            </form>
+          ) : (
+            <div className="upload-drop">
+              <ImagePlus size={28} />
+              <strong>Save item first</strong>
+              <span>Image upload is available after the item is created.</span>
+            </div>
+          )}
           <div className="smart-fill-card">
             <Sparkles size={20} />
             <strong>Smart Auto Fill</strong>
@@ -376,10 +393,14 @@ function ItemEditor({
 
 function ItemFields({
   item,
+  categories,
+  subcategories,
   units,
   taxRates
 }: {
   item?: ItemForForm;
+  categories: string[];
+  subcategories: string[];
   units: UnitForForm[];
   taxRates: TaxRateForForm[];
 }) {
@@ -390,14 +411,19 @@ function ItemFields({
       <div className="form-grid two">
         <div className="field">
           <label htmlFor={`category${suffix}`}>Product Category</label>
-          <input id={`category${suffix}`} name="category" defaultValue={item?.category || ""} placeholder="Jewellery" />
+          <input id={`category${suffix}`} name="category" list={`item-category-options${suffix}`} defaultValue={item?.category || ""} placeholder="Jewellery" />
         </div>
-        <div className="field with-add">
+        <div className="field">
           <label htmlFor={`subcategory${suffix}`}>Subcategory</label>
-          <input id={`subcategory${suffix}`} name="subcategory" defaultValue={item?.subcategory || ""} placeholder="Necklaces" />
-          <button className="icon-button" type="button" title="Add subcategory"><Plus size={15} /></button>
+          <input id={`subcategory${suffix}`} name="subcategory" list={`item-subcategory-options${suffix}`} defaultValue={item?.subcategory || ""} placeholder="Necklaces" />
         </div>
       </div>
+      <datalist id={`item-category-options${suffix}`}>
+        {categories.map((category) => <option key={category} value={category} />)}
+      </datalist>
+      <datalist id={`item-subcategory-options${suffix}`}>
+        {subcategories.map((subcategory) => <option key={subcategory} value={subcategory} />)}
+      </datalist>
       <div className="form-grid three">
         <div className="field">
           <label htmlFor={`sku${suffix}`}>Item Code *</label>
@@ -520,12 +546,13 @@ function BulkImagePanel() {
         <span>Supported formats: JPEG, PNG, GIF, WebP, max 10MB each.</span>
         <span>You can upload multiple images per item.</span>
       </div>
-      <div className="upload-zone">
+      <form className="upload-zone" action="/api/items/images/bulk" method="post" encType="multipart/form-data">
         <ImagePlus size={34} />
         <h3>Upload Product Images</h3>
         <p className="muted">Drag and drop multiple images or click to browse.</p>
-        <button className="button subtle" type="button"><Upload size={15} /> Choose Images</button>
-      </div>
+        <input name="files" type="file" accept="image/png,image/jpeg,image/webp" multiple required />
+        <button className="button subtle" type="submit"><Upload size={15} /> Upload Images</button>
+      </form>
     </div>
   );
 }

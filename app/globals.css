@@ -485,6 +485,12 @@ button:disabled {
   color: var(--danger);
 }
 
+.notice.success {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  color: #047857;
+}
+
 .button {
   align-items: center;
   background: var(--primary);
@@ -1534,6 +1540,13 @@ button:disabled {
 .item-thumb.ready {
   background: linear-gradient(135deg, #dcfce7, #e0f2fe);
   color: #047857;
+  overflow: hidden;
+}
+
+.item-thumb img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
 .item-name-cell {
@@ -1739,6 +1752,11 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
   margin: 0;
+}
+
+.upload-drop input[type="file"],
+.upload-zone input[type="file"] {
+  max-width: 100%;
 }
 
 .smart-fill-card {

@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
+import path from "node:path";
 import { prisma } from "@/lib/db/prisma";
+import { readPrivateDocument, writePrivateDocument } from "@/lib/documents/document-storage";
+import { prepareFileAsset } from "@/lib/files/file-assets";
 import { assertPermission } from "@/lib/permissions/roles";
 import { requireTenantContext, type TenantContext } from "@/lib/repositories/tenant-context";
 import type { ItemActionInput, ItemInput, ItemUpdateInput, TaxRateInput, UnitInput } from "@/lib/validation/items";
@@ -60,8 +63,20 @@ export async function listItemMasters(context: TenantContext, filters: ItemListF
     distinct: ["category"],
     orderBy: { category: "asc" }
   });
+  const subcategories = await prisma.item.findMany({
+    where: { organisationId: tenant.organisationId, subcategory: { not: null } },
+    select: { subcategory: true },
+    distinct: ["subcategory"],
+    orderBy: { subcategory: "asc" }
+  });
 
-  return { units, taxRates, items, categories: categories.map((item) => item.category).filter(Boolean) as string[] };
+  return {
+    units,
+    taxRates,
+    items,
+    categories: categories.map((item) => item.category).filter(Boolean) as string[],
+    subcategories: subcategories.map((item) => item.subcategory).filter(Boolean) as string[]
+  };
 }
 
 export async function createUnit(context: TenantContext, input: UnitInput) {
@@ -377,4 +392,129 @@ export async function deleteItem(context: TenantContext, input: ItemActionInput)
 
     return { deleted: true, deactivated: false };
   });
+}
+
+export async function uploadItemImage(context: TenantContext, input: { itemId: string; file: File }) {
+  const tenant = requireTenantContext(context);
+  assertPermission(tenant.role, "masters:manage");
+
+  const prepared = await prepareFileAsset(context, input.file, "item_image");
+  const stored = await writePrivateDocument(prepared.storageKey, prepared.data);
+
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.item.findFirst({
+      where: { id: input.itemId, organisationId: tenant.organisationId }
+    });
+
+    if (!item) {
+      throw new Error("Item not found.");
+    }
+
+    const asset = await tx.fileAsset.create({
+      data: {
+        organisationId: prepared.organisationId,
+        kind: prepared.kind,
+        originalName: prepared.originalName,
+        storageKey: prepared.storageKey,
+        mimeType: prepared.mimeType,
+        byteSize: stored.byteSize,
+        checksumSha256: stored.checksumSha256
+      }
+    });
+
+    const updated = await tx.item.update({
+      where: { id: item.id },
+      data: {
+        imageAssetId: asset.id,
+        imageStatus: "linked"
+      }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        organisationId: tenant.organisationId,
+        actorUserId: tenant.userId,
+        action: "item_image.upload",
+        entityType: "item",
+        entityId: item.id,
+        metadata: { assetId: asset.id, originalName: asset.originalName }
+      }
+    });
+
+    return updated;
+  });
+}
+
+export async function readItemImage(context: TenantContext, itemId: string) {
+  const tenant = requireTenantContext(context);
+  assertPermission(tenant.role, "masters:read");
+
+  const item = await prisma.item.findFirst({
+    where: { id: itemId, organisationId: tenant.organisationId }
+  });
+
+  if (!item?.imageAssetId) {
+    return null;
+  }
+
+  const asset = await prisma.fileAsset.findFirst({
+    where: {
+      id: item.imageAssetId,
+      organisationId: tenant.organisationId,
+      kind: "item_image"
+    }
+  });
+
+  if (!asset) {
+    return null;
+  }
+
+  return {
+    data: await readPrivateDocument(asset.storageKey),
+    mimeType: asset.mimeType,
+    originalName: asset.originalName
+  };
+}
+
+export async function uploadBulkItemImages(context: TenantContext, files: File[]) {
+  const tenant = requireTenantContext(context);
+  assertPermission(tenant.role, "masters:manage");
+
+  const items = await prisma.item.findMany({
+    where: { organisationId: tenant.organisationId, sku: { not: null } },
+    select: { id: true, sku: true }
+  });
+  const itemByCode = new Map(
+    items
+      .filter((item): item is { id: string; sku: string } => Boolean(item.sku))
+      .map((item) => [item.sku.toLowerCase(), item])
+  );
+
+  let linked = 0;
+  const unmatched: string[] = [];
+
+  for (const file of files) {
+    const code = path.parse(file.name).name.toLowerCase();
+    const item = itemByCode.get(code);
+
+    if (!item) {
+      unmatched.push(file.name);
+      continue;
+    }
+
+    await uploadItemImage(context, { itemId: item.id, file });
+    linked += 1;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      organisationId: tenant.organisationId,
+      actorUserId: tenant.userId,
+      action: "item_image.bulk_upload",
+      entityType: "item",
+      metadata: { linked, unmatchedCount: unmatched.length, unmatched: unmatched.slice(0, 20) }
+    }
+  });
+
+  return { linked, unmatched };
 }
