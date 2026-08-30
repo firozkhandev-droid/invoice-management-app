@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Download, FileText, PackagePlus, Save, Search, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Download, FileText, PackagePlus, Save, Search, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTenantContextForUser } from "@/lib/organisations/membership";
@@ -29,6 +29,14 @@ export default async function PackingListDetailPage({
   const canEdit = packingList.status === "draft";
   const issueRequirements = packingListIssueRequirements(packingList);
   const canIssue = canEdit && issueRequirements.length === 0;
+  const readiness = packingListReadiness({
+    hasCompany: Boolean(packingList.companyId),
+    hasBuyer: Boolean(packingList.buyerId),
+    hasLines: packingList.lines.length > 0,
+    hasShipmentMode: Boolean(packingList.shipmentMode),
+    hasRoute: Boolean(packingList.portOfLoading && packingList.portOfDischarge && packingList.finalDestination),
+    hasWeights: packingList.totalGrossWeightKg.gt(0) && packingList.totalNetWeightKg.gt(0)
+  });
 
   return (
     <AppShell>
@@ -93,6 +101,29 @@ export default async function PackingListDetailPage({
               <span>Page 1 of 1</span>
             </div>
 
+            <div className="document-command-panel compact">
+              <div>
+                <p className="muted">Shipment readiness</p>
+                <h2>{readiness.ready} of {readiness.total} checks complete</h2>
+              </div>
+              <div className="readiness-list">
+                {readiness.items.map((item) => (
+                  <span className={item.done ? "ready-check done" : "ready-check"} key={item.label}>
+                    {item.done ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="packing-totals-strip">
+              <span><strong>{packingList.totalPackages}</strong><small>Packages</small></span>
+              <span><strong>{packingList.totalQuantity.toString()}</strong><small>Quantity</small></span>
+              <span><strong>{packingList.totalNetWeightKg.toString()} kg</strong><small>Net weight</small></span>
+              <span><strong>{packingList.totalGrossWeightKg.toString()} kg</strong><small>Gross weight</small></span>
+              <span><strong>{packingList.totalVolumeCbm.toString()} cbm</strong><small>Volume</small></span>
+            </div>
+
             {canEdit ? (
               <form id="packing-list-draft-form" action="/api/packing-lists" method="post">
                 <input type="hidden" name="packingListId" value={packingList.id} />
@@ -104,7 +135,10 @@ export default async function PackingListDetailPage({
             )}
 
             {canEdit && issueRequirements.length > 0 ? (
-              <p className="notice error top-space">Before issuing: {issueRequirements.join(", ")}.</p>
+              <div className="notice error top-space">
+                <strong>Before issuing</strong>
+                <span>{issueRequirements.join(", ")}.</span>
+              </div>
             ) : null}
 
             <div className="document-action-row">
@@ -357,4 +391,28 @@ function ExportDocumentNav() {
       </nav>
     </aside>
   );
+}
+
+function packingListReadiness(input: {
+  hasCompany: boolean;
+  hasBuyer: boolean;
+  hasLines: boolean;
+  hasShipmentMode: boolean;
+  hasRoute: boolean;
+  hasWeights: boolean;
+}) {
+  const items = [
+    { label: "Exporter", done: input.hasCompany },
+    { label: "Buyer", done: input.hasBuyer },
+    { label: "Package lines", done: input.hasLines },
+    { label: "Shipment mode", done: input.hasShipmentMode },
+    { label: "Route", done: input.hasRoute },
+    { label: "Weights", done: input.hasWeights }
+  ];
+
+  return {
+    items,
+    ready: items.filter((item) => item.done).length,
+    total: items.length
+  };
 }

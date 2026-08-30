@@ -58,6 +58,13 @@ export default async function ItemsPage({
   const exportHref = `/api/items/export${query.size ? `?${query.toString()}` : ""}`;
   const activeCount = items.filter((item) => item.isActive).length;
   const pendingImageCount = items.filter((item) => !item.imageAssetId || item.imageStatus !== "linked").length;
+  const dataQuality = [
+    { label: "Missing item code", count: items.filter((item) => !item.sku).length },
+    { label: "Missing HSN", count: items.filter((item) => !item.hsnSac).length },
+    { label: "Missing price", count: items.filter((item) => !item.saleRate).length },
+    { label: "Missing weight", count: items.filter((item) => !item.weightKg).length },
+    { label: "Image pending", count: pendingImageCount }
+  ];
 
   return (
     <AppShell>
@@ -152,6 +159,15 @@ export default async function ItemsPage({
               <span><strong>{activeCount}</strong> active</span>
               <span><strong>{pendingImageCount}</strong> image pending</span>
               <span><strong>{categories.length}</strong> categories</span>
+            </div>
+
+            <div className="catalog-quality-strip">
+              {dataQuality.map((metric) => (
+                <span className={metric.count > 0 ? "quality-pill warning" : "quality-pill"} key={metric.label}>
+                  <strong>{metric.count}</strong>
+                  {metric.label}
+                </span>
+              ))}
             </div>
 
             {items.length === 0 ? (

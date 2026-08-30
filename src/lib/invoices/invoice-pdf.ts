@@ -105,7 +105,7 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoicePdfData) {
   let y = drawHeaderGrid(doc, data, 72);
   y = drawPartyGrid(doc, data, y);
   y = drawLogisticsGrid(doc, data, y);
-  y = drawItemsTable(doc, data.lines, y);
+  y = drawItemsTable(doc, data.lines, y, data.currency);
   y = drawTotalsAndWords(doc, data, y);
   drawBankDeclarationSignature(doc, data, y);
 }
@@ -180,9 +180,9 @@ function drawLogisticsGrid(doc: PDFKit.PDFDocument, data: InvoicePdfData, y: num
   return y + 72;
 }
 
-function drawItemsTable(doc: PDFKit.PDFDocument, lines: InvoicePdfLine[], startY: number): number {
+function drawItemsTable(doc: PDFKit.PDFDocument, lines: InvoicePdfLine[], startY: number, currency: string): number {
   let y = startY;
-  drawItemHeader(doc, y);
+  drawItemHeader(doc, y, currency);
   y += 36;
 
   lines.forEach((item, index) => {
@@ -190,7 +190,7 @@ function drawItemsTable(doc: PDFKit.PDFDocument, lines: InvoicePdfLine[], startY
     if (y + rowHeight + 172 > page.bottom) {
       doc.addPage();
       y = page.margin;
-      drawItemHeader(doc, y);
+      drawItemHeader(doc, y, currency);
       y += 36;
     }
 
@@ -216,7 +216,7 @@ function drawItemsTable(doc: PDFKit.PDFDocument, lines: InvoicePdfLine[], startY
   return y;
 }
 
-function drawItemHeader(doc: PDFKit.PDFDocument, y: number) {
+function drawItemHeader(doc: PDFKit.PDFDocument, y: number, currency: string) {
   const headers = [
     ["Marks & No.\nContainer No.", widths.marks],
     ["HSN Code", widths.hsn],
@@ -224,8 +224,8 @@ function drawItemHeader(doc: PDFKit.PDFDocument, y: number) {
     ["Description of Goods", widths.description],
     ["Quantity", widths.quantity],
     ["Unit", widths.unit],
-    ["Rate in Rs.", widths.rate],
-    ["Amount in Rs.", widths.amount]
+    [`Rate in ${currency}`, widths.rate],
+    [`Amount in ${currency}`, widths.amount]
   ] as const;
 
   let x = tableX;
