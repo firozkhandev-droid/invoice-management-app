@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js migrate deploy && next build",
+    "build": "node node_modules/prisma/build/index.js generate && node node_modules/prisma/build/index.js migrate deploy && next build && node scripts/prepare-standalone-assets.mjs",
     "build:next": "next build",
     "start": "next start",
     "lint": "eslint .",
