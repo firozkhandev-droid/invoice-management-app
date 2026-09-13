@@ -13,7 +13,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "offline:schema": "node scripts/offline.mjs schema",
+    "offline:setup": "node scripts/offline.mjs setup",
+    "offline:dev": "node scripts/offline.mjs dev",
+    "offline:build": "node scripts/offline.mjs build",
+    "offline:studio": "node scripts/offline.mjs studio"
   },
   "keywords": [],
   "author": "",

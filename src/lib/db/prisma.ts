@@ -10,6 +10,10 @@ function databaseUrlWithConnectionLimit() {
 
   try {
     const url = new URL(databaseUrl);
+    if (!["mysql:", "postgresql:", "postgres:"].includes(url.protocol)) {
+      return databaseUrl;
+    }
+
     if (!url.searchParams.has("connection_limit")) {
       url.searchParams.set("connection_limit", "1");
     }
