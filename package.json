@@ -18,7 +18,8 @@
     "offline:setup": "node scripts/offline.mjs setup",
     "offline:dev": "node scripts/offline.mjs dev",
     "offline:build": "node scripts/offline.mjs build",
-    "offline:studio": "node scripts/offline.mjs studio"
+    "offline:studio": "node scripts/offline.mjs studio",
+    "offline:package:windows": "node scripts/package-offline-windows.mjs"
   },
   "keywords": [],
   "author": "",

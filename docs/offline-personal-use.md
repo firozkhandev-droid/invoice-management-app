@@ -27,6 +27,28 @@ Register a local user from the app. Your offline data is stored on this computer
 
 Back up both locations together.
 
+## Windows Offline Package
+
+Create a double-click package:
+
+```bash
+npm run offline:package:windows
+```
+
+Package folder:
+
+```text
+dist/invoice-management-offline-windows
+```
+
+Double-click:
+
+```text
+Start Invoice Management.cmd
+```
+
+The package includes a blank SQLite database and stores personal data inside its own `offline-data` folder.
+
 ## Production Safety
 
 - Production deployment still uses `prisma/schema.prisma` with MySQL.
