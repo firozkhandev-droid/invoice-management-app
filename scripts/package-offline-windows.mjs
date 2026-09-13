@@ -190,6 +190,7 @@ run("node", [prismaCli, "generate", "--schema", "prisma/schema.offline.prisma"])
 run("node", ["scripts/offline.mjs", "build"]);
 
 await cp(standaloneDir, packageDir, { recursive: true });
+await rm(path.join(packageDir, "uploads"), { recursive: true, force: true });
 await mkdir(path.join(packageDir, ".next"), { recursive: true });
 await rm(path.join(packageDir, ".next", "static"), { recursive: true, force: true });
 await cp(staticDir, path.join(packageDir, ".next", "static"), { recursive: true });
